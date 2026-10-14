@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8fa">
+  <title>Accountability Gate — local prototype</title>
+  <style>
+    :root { color-scheme: light; --ink:#202832; --muted:#5c6874; --line:#d8dee5; --paper:#fff; --wash:#f7f8fa; --accent:#176b66; --warn:#8a4b12; --bad:#9c3535; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--wash); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(1040px, calc(100% - 32px)); margin:34px auto 64px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:22px; }
+    h1 { margin:2px 0 4px; font-size:clamp(28px,4vw,40px); line-height:1.1; letter-spacing:-.04em; }
+    h2 { margin:0 0 14px; font-size:19px; letter-spacing:-.02em; }
+    p { margin:6px 0 0; color:var(--muted); }
+    .eyebrow { color:var(--accent); font-size:12px; font-weight:750; letter-spacing:.1em; text-transform:uppercase; }
+    .badge { border:1px solid var(--line); background:var(--paper); border-radius:999px; padding:6px 10px; color:var(--muted); font-size:12px; white-space:nowrap; }
+    .notice { border-left:4px solid var(--warn); background:#fff8ed; padding:12px 14px; margin:20px 0; color:#53350f; }
+    .grid { display:grid; grid-template-columns: minmax(280px,.9fr) minmax(360px,1.3fr); gap:16px; align-items:start; }
+    .panel { background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:20px; }
+    label { display:block; margin:14px 0 5px; font-weight:650; font-size:14px; }
+    input, select, textarea { width:100%; border:1px solid #aeb8c3; border-radius:6px; padding:10px 11px; color:var(--ink); background:#fff; font:inherit; }
+    input:focus, select:focus, textarea:focus, button:focus-visible { outline:3px solid #89c7c1; outline-offset:2px; }
+    .help { color:var(--muted); font-size:13px; }
+    .checks { display:grid; gap:8px; margin-top:10px; }
+    .check { display:flex; gap:9px; align-items:flex-start; font-weight:450; margin:0; }
+    .check input { width:auto; margin-top:5px; }
+    button { border:1px solid var(--accent); border-radius:6px; padding:10px 13px; color:#fff; background:var(--accent); font:650 14px system-ui,sans-serif; cursor:pointer; }
+    button.secondary { background:#fff; color:var(--ink); border-color:#aeb8c3; }
+    button.danger { background:#fff; color:var(--bad); border-color:#d9a4a4; }
+    button:disabled { opacity:.48; cursor:not-allowed; }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+    .status { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; font-size:12px; font-weight:700; background:#e8f3f1; color:#155e58; }
+    .status.review { background:#fff1da; color:#7d470d; }
+    .status.paused { background:#fbe8e8; color:#8a2828; }
+    .summary { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; }
+    .metric { background:var(--wash); padding:10px; border-radius:6px; }
+    .metric b { display:block; font-size:18px; }
+    .metric span { color:var(--muted); font-size:12px; }
+    .rule { border-top:1px solid var(--line); margin:16px 0; }
+    .empty { padding:22px 0 4px; color:var(--muted); }
+    ul { padding-left:18px; margin:8px 0 0; }
+    li { margin:4px 0; }
+    .log { max-height:220px; overflow:auto; padding-left:18px; }
+    .log li { font-size:13px; color:var(--muted); }
+    .foot { margin-top:16px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .small-button { font-size:12px; padding:6px 9px; }
+    @media (max-width:760px) { main { margin-top:22px; } header { display:block; } .badge { display:inline-block; margin-top:12px; } .grid { grid-template-columns:1fr; } .summary { grid-template-columns:1fr 1fr 1fr; } }
+    @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior:auto !important; animation:none !important; transition:none !important; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="eyebrow">AI accountability · early build</div>
+      <h1>Permission before usage.</h1>
+      <p>Set the limit. Approve each run. A repeated miss pauses access.</p>
+    </div>
+    <span class="badge">Local demo · no provider connected</span>
+  </header>
+
+  <div class="notice"><strong>Prototype boundary:</strong> this page demonstrates the policy logic only. It makes no AI calls, cannot see ChatGPT/Claude/Gemini usage, and cannot control their subscriptions. Data stays in this browser.</div>
+
+  <div class="grid">
+    <section class="panel" aria-labelledby="new-title">
+      <h2 id="new-title">Create a task limit</h2>
+      <p class="help">The limit applies to this task. A call is only simulated after you approve it.</p>
+      <form id="task-form">
+        <label for="task-name">What are you asking the AI to do?</label>
+        <input id="task-name" required maxlength="120" placeholder="e.g. Compare three vendor quotes">
+        <label for="provider">AI system</label>
+        <select id="provider"><option>ChatGPT</option><option>Claude</option><option>Gemini</option><option>Perplexity</option><option>Other</option></select>
+        <label for="budget">Maximum spend for this task ($)</label>
+        <input id="budget" required type="number" min="0.01" step="0.01" value="1.00">
+        <label for="estimate">Estimated cost of next run ($)</label>
+        <input id="estimate" required type="number" min="0" step="0.01" value="0.05">
+        <div class="checks" aria-label="Allowed actions">
+          <label class="check"><input type="checkbox" value="web"> Allow web access</label>
+          <label class="check"><input type="checkbox" value="files"> Allow file changes</label>
+          <label class="check"><input type="checkbox" value="external"> Allow sending, buying, deleting, or sharing</label>
+        </div>
+        <p class="help">Unchecked actions are not authorized by this task.</p>
+        <div class="actions"><button type="submit">Set limit</button></div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="active-title">
+      <h2 id="active-title">Current authorization</h2>
+      <div id="active-task" class="empty">No task is active. Create a limit to start.</div>
+      <div id="task-controls" hidden>
+        <div class="summary">
+          <div class="metric"><b id="remaining">$0.00</b><span>remaining</span></div>
+          <div class="metric"><b id="used">$0.00</b><span>approved so far</span></div>
+          <div class="metric"><b id="calls">0</b><span>approved runs</span></div>
+        </div>
+        <div id="provider-state"></div>
+        <div class="rule"></div>
+        <label for="next-estimate">Estimated cost for the next run ($)</label>
+        <input id="next-estimate" type="number" min="0" step="0.01" value="0.05">
+        <div class="actions">
+          <button id="approve">Approve one simulated run</button>
+          <button id="deny" class="secondary">Deny run</button>
+        </div>
+        <p id="gate-message" class="help" aria-live="polite"></p>
+        <div class="rule"></div>
+        <strong>After the run, record the outcome:</strong>
+        <div class="actions">
+          <button id="success" class="secondary">Delivered as requested</button>
+          <button id="failure" class="danger">Failed / needs correction</button>
+        </div>
+        <div id="reauthorize-wrap" class="actions" hidden><button id="reauthorize" class="secondary">Review failure and restore access</button></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-top:16px" aria-labelledby="ledger-title">
+    <h2 id="ledger-title">Audit trail</h2>
+    <p class="help">Local record of approvals, denials, and outcomes. No information leaves this page.</p>
+    <ul id="log" class="log"><li>No events yet.</li></ul>
+    <div class="foot">
+      <span id="storage-note" class="help">Saved only in this browser.</span>
+      <div class="actions" style="margin:0">
+        <button id="export" class="secondary small-button">Export data</button>
+        <button id="clear" class="danger small-button">Clear local data</button>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+  const KEY = 'accountability-gate-v0';
+  const $ = id => document.getElementById(id);
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { active:null, failures:{}, reviewed:{}, events:[] }; } catch { return { active:null, failures:{}, reviewed:{}, events:[] }; } };
+  let state = read();
+  state.reviewed ||= {};
+  const money = n => '$' + Number(n || 0).toFixed(2);
+  const save = () => { localStorage.setItem(KEY, JSON.stringify(state)); render(); };
+  const event = (text, kind='note') => { state.events.unshift({ text, kind, at:new Date().toISOString() }); state.events = state.events.slice(0,100); };
+  const failureCount = () => Number(state.failures[state.active?.provider] || 0);
+  const needsReview = () => failureCount() === 1 && Number(state.reviewed[state.active?.provider] || 0) < 1;
+  const isPaused = () => failureCount() >= 2;
+
+  $('task-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const name = $('task-name').value.trim();
+    const budget = Number($('budget').value);
+    if (!name || !Number.isFinite(budget) || budget <= 0) return;
+    if (state.active && !confirm('Replace the active task? Its remaining budget will be discarded, but its audit events stay saved.')) return;
+    state.active = { id:crypto.randomUUID(), name, provider:$('provider').value, budget, spent:0, calls:0, allowed:[...document.querySelectorAll('.checks input:checked')].map(x=>x.value), estimate:Number($('estimate').value)||0, status:'open' };
+    event(`Limit set for “${name}” on ${state.active.provider}: ${money(budget)} maximum.`, 'set');
+    $('next-estimate').value = $('estimate').value || '0.05';
+    save();
+  });
+
+  $('approve').addEventListener('click', () => {
+    const t = state.active; if (!t) return;
+    if (isPaused() || needsReview()) { $('gate-message').textContent = isPaused() ? 'Paused after two failures. Review and restore access before another run.' : 'A failure needs acknowledgment before another run.'; return; }
+    const amount = Number($('next-estimate').value);
+    if (!Number.isFinite(amount) || amount < 0) { $('gate-message').textContent = 'Enter a valid estimated cost.'; return; }
+    if (amount > t.budget - t.spent + 0.000001) { event(`Run blocked: ${money(amount)} estimate exceeds ${money(t.budget-t.spent)} remaining.`, 'blocked'); $('gate-message').textContent = `Blocked. Only ${money(t.budget-t.spent)} remains; lower the estimate or set a new limit.`; save(); return; }
+    t.spent = Math.round((t.spent + amount)*100)/100; t.calls++;
+    event(`User approved one simulated ${t.provider} run at ${money(amount)}.`, 'approved');
+    $('gate-message').textContent = 'Approved in the demo ledger. No AI request was sent.'; save();
+  });
+  $('deny').addEventListener('click', () => { if (!state.active) return; event(`User denied the next ${state.active.provider} run. No budget used.`, 'denied'); $('gate-message').textContent='Denied. No budget used.'; save(); });
+  $('success').addEventListener('click', () => {
+    if (!state.active || state.active.calls === 0) { $('gate-message').textContent='Approve a simulated run before recording its outcome.'; return; }
+    state.failures[state.active.provider] = 0; state.reviewed[state.active.provider] = 0;
+    event(`Outcome verified as delivered for “${state.active.name}”.`, 'success');
+    state.active = null; $('gate-message').textContent=''; save();
+  });
+  $('failure').addEventListener('click', () => {
+    if (!state.active || state.active.calls === 0) { $('gate-message').textContent='Approve a simulated run before recording its outcome.'; return; }
+    const p = state.active.provider; state.failures[p] = Number(state.failures[p]||0) + 1;
+    event(`Failure recorded for ${p}. Access now requires review.`, 'failure');
+    $('gate-message').textContent = state.failures[p] >= 2 ? 'Second failure recorded. Access is paused until you explicitly clear the pause.' : 'Failure recorded. Review it before allowing another run.'; save();
+  });
+  $('reauthorize').addEventListener('click', () => {
+    const p = state.active?.provider; if (!p) return;
+    const f = failureCount();
+    if (f >= 2) {
+      if (!confirm(`Clear the repeated-failure pause and restore ${p} access?`)) return;
+      state.failures[p] = 0; state.reviewed[p] = 0;
+      event(`User cleared the repeated-failure pause for ${p}.`, 'restored');
+    } else {
+      if (!confirm(`Acknowledge the recorded failure and allow one more ${p} run?`)) return;
+      state.reviewed[p] = f;
+      event(`User acknowledged the ${p} failure and allowed another run.`, 'reviewed');
+    }
+    save();
+  });
+  $('export').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='accountability-gate-export.json'; a.click(); URL.revokeObjectURL(a.href);
+  });
+  $('clear').addEventListener('click', () => {
+    if (!confirm('Permanently clear this browser’s local demo data?')) return;
+    state = {active:null, failures:{}, reviewed:{}, events:[]}; save();
+  });
+
+  function render() {
+    const t = state.active; $('task-controls').hidden = !t;
+    $('active-task').hidden = !!t;
+    if (t) {
+      $('remaining').textContent = money(Math.max(0,t.budget-t.spent)); $('used').textContent=money(t.spent); $('calls').textContent=t.calls;
+      const f = failureCount(); const st = $('provider-state');
+      st.innerHTML = isPaused() ? '<span class="status paused">Paused after repeated failure</span>' : needsReview() ? '<span class="status review">Review required</span>' : '<span class="status">Active</span>';
+      $('reauthorize-wrap').hidden = f === 0;
+      $('reauthorize').textContent = isPaused() ? 'Review failures and restore access' : 'Acknowledge failure and restore access';
+      $('approve').disabled = isPaused() || needsReview();
+      $('gate-message').textContent = isPaused() ? 'Two failures are recorded. Access is paused until you clear it.' : needsReview() ? 'One failure is recorded. Review it before another run.' : 'Approval applies to one run only.';
+      const allowed = t.allowed.length ? t.allowed.join(', ') : 'No external actions allowed';
+      $('storage-note').textContent = `Allowed actions: ${allowed}. Saved only in this browser.`;
+    } else {
+      $('active-task').textContent = 'No task is active. Create a limit to start.';
+      $('storage-note').textContent='Saved only in this browser.';
+    }
+    const log=$('log'); log.replaceChildren();
+    if (!state.events.length) { const li=document.createElement('li'); li.textContent='No events yet.'; log.append(li); }
+    else state.events.forEach(x => { const li=document.createElement('li'); li.textContent=`${new Date(x.at).toLocaleString()} — ${x.text}`; log.append(li); });
+  }
+  render();
+})();
+</script>
+</body>
+</html>
